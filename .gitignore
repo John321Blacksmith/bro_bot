@@ -1,5 +1,4 @@
 t_bot/
-telebot/credentials.py
 __pycache__/
+telebot/credentials.py
 test.py
-*.json
