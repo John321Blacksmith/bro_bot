@@ -1,4 +1,4 @@
 t_bot/
 __pycache__/
-telebot/credentials.py
+credentials.py
 test.py
