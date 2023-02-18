@@ -1,0 +1,5 @@
+t_bot/
+telebot/credentials.py
+__pycache__/
+test.py
+*.json
