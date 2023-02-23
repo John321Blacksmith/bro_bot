@@ -1,3 +1,4 @@
 t_bot/
 telebot/credentials.py
 test.py
+*.json
