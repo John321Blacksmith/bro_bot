@@ -1,9 +1,7 @@
 t_bot/
 telebot/credentials.py
-<<<<<<< HEAD
 test.py
-=======
 telebot/__pycache__
 test.py
 *.json
->>>>>>> main
+
