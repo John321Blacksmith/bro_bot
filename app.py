@@ -1,5 +1,6 @@
 import logging
-
+import sys
+sys.path.append('C://Users//belok//Desktop//John321Blacksmith//bro_bot')
 from telegram import __version__ as TG_VER
 
 try:
@@ -14,9 +15,18 @@ if __version_info__ < (20, 0, 0, "alpha", 1):
         f"visit https://docs.python-telegram-bot.org/en/v{TG_VER}/examples.html"
     )
 
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from telegram import ForceReply, Update
-from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandler, filters
+from telegram.ext import (Application,
+                          CommandHandler,
+                          ContextTypes,
+                          CallbackQueryHandler,
+                          MessageHandler,
+                          filters)
 from telebot.credentials import API_TOKEN
+from telebot import great_parser
+
+news_confs = great_parser.decode_json_data('telebot//scraping_confs.json')
 
 # Enable logging
 logging.basicConfig(
@@ -30,31 +40,48 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
     user = update.effective_user
 
-    await update.message.reply_html(
-        rf"Hello {user.mention_html()}."
+    await update.message.reply_text(
+        f"""Hello, {user.username}, I am your bro bot :-).\nI can show you news, weather and current stock.\nHere are the commands:
+           /news - show news,
+           /weather - show weather,
+           /stock - show stock
+        """
     )
 
-async def show_weather(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Show weather."""
 
-    await update.message.reply_text('weather now')
-
-
-async def show_stocks(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Show stocks."""
-
-    await update.message.reply_text('Stocks here')
-
-
-async def show_news(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def choose_news_cat(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Show news."""
-    await update.message.reply_text('News are here')
+    news_cats_keyboard = [[InlineKeyboardButton('culture', callback_data='culture')],
+                          [InlineKeyboardButton('sport', callback_data='sport')],
+                          [InlineKeyboardButton('politics', callback_data='politics')],
+                          [InlineKeyboardButton('high-tech', callback_data='high-tech')],
+                          [InlineKeyboardButton('main', callback_data='main')]
+                          ]
+
+    # get a JSON serializable object
+    keyboard_markup = InlineKeyboardMarkup(news_cats_keyboard)
+
+    await update.message.reply_text("Select the category you prefer:", reply_markup=keyboard_markup)
+
+
+async def get_news(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    query = update.callback_query
+    # define the chosen category as a keyword for the parser
+    category = query.data
+
+    ## get news of this category
+    # unstrucured content
+    news_content = great_parser.fetch_content(news_confs[category]['source'], category, news_confs)
+    news_objs = great_parser.structure_data(category, news_confs, news_content)
+
+    await update.message.reply_text(text=news_objs)
 
 
 async def reply(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Reply to the user."""
 
-    await update.message.reply_text(update.message.text)
+    # catch user's input
+    query = update.callback_query
 
 
 def main() -> None:
@@ -66,14 +93,14 @@ def main() -> None:
     # handle different commands
     application.add_handler(CommandHandler('start', start))
     # show news
-    application.add_handler(CommandHandler('news', show_news))
-    # show stocks
-    application.add_handler(CommandHandler('stocks', show_stocks))
-    # show weather
-    application.add_handler(CommandHandler('weather', show_weather))
+    application.add_handler(CommandHandler('news', choose_news_cat))
 
-    # non-commands
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, reply))
+
+    application.add_handler(CallbackQueryHandler(get_news))
+
+    # # non-commands
+    # application.add_handler()
 
     # run the bot
     application.run_polling()

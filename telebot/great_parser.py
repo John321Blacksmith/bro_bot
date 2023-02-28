@@ -51,7 +51,7 @@ class SeqManager:
    """
 
    @staticmethod
-   def refine_string(item, problematic_string: str, site_dict: dict, lang=None, numbers_only=False):
+   def refine_string(item, problematic_string: str, site_dict: dict, numbers_only=False):
       """
       This method filters the string from the excessive space.
       Returns either digits or letters.
@@ -83,20 +83,8 @@ class SeqManager:
             result = None
 
       else:
-         for letter in list(problematic_string):
-            if lang == 'ru':
-               if (letter.lower() in site_dict['ru-letters']) or (letter.isdigit()):
-                  data += letter
-
-            elif lang == 'en':
-               if (letter.lower() in site_dict['eng-letters']) or (letter.isdigit()):
-                  data += letter
-         else:
-            if '' in data:
-               if data.count('') >= 2:
-                  data = data.replace('  ', ' ')
-
-            result = data
+         data = problematic_string.strip()
+         result = data
 
       return result
 
@@ -232,14 +220,14 @@ class DataFetcher(Bs, SeqManager):
                               site_dict[item]['object']['class'])
 
       # strolling through the derived list and extraction of each key data from every list object
-      for obj in objects:
+      for i in range(0, len(objects)):
          # derive a title
          # if any object is in the list of componets every api item has, the extraction of HTML data will be performed
          if 'titles' in site_dict[item]['obj_components']:
             # if there is no a 'class' key in the 'title' object of the api item, a 'tag' key will be used only
             if 'class' not in site_dict[item]['title'].keys():
                if 'attribute' in site_dict[item]['title'].keys():
-                  titles_house = obj.find_all(site_dict[item]['title']['tag'])
+                  titles_house = objects[i].find_all(site_dict[item]['title']['tag'])
                   for t in titles_house:
                      t_attrs = t.attrs
                      for attr in t_attrs.keys():
@@ -247,10 +235,10 @@ class DataFetcher(Bs, SeqManager):
                            if t[attr] == site_dict[item]['title']['attr_value']:
                               title = t
                else:
-                  title = obj.find(site_dict[item]['title']['tag'])
+                  title = objects[i].find(site_dict[item]['title']['tag'])
 
             else:
-               title = obj.find(site_dict[item]['title']['tag'],
+               title = objects[i].find(site_dict[item]['title']['tag'],
                                 site_dict[item]['title']['class'])
 
             # here we have an entity of one of the four types of web page content
@@ -258,26 +246,38 @@ class DataFetcher(Bs, SeqManager):
                # if this entity is not None, it'll be sent to its family
                content['titles'].append(title.text)
             else:
-            	content['titles'].append('empty')
+            	content['titles'].append('No data')
 
          # derive some integers
          if 'integers' in site_dict[item]['obj_components']:
-            numbers = obj.find(site_dict[item]['integer']['tag'],
-                               site_dict[item]['integer']['class'])
+            # if there is an order pattern in the html class-attribute, 
+            # an order number is defined for each of the attribute values and inserted to the pattern
+            if 'iterable' in site_dict[item]['integer'].keys():
+               if site_dict[item]['integer']['iterable']:
+                  # define an order number
+                  num = i + 1
+                  numbers = objects[i].find(site_dict[item]['integer']['tag'],
+                                 site_dict[item]['integer']['class'].format(num))
+            else:  
+               numbers = objects[i].find(site_dict[item]['integer']['tag'],
+                                  site_dict[item]['integer']['class'])
+
             if numbers != None:
                content['integers'].append(numbers.text)
+            else:
+               content['integers'].append('No data')
 
          # derive a link
          if 'links' in site_dict[item]['obj_components']:
             if 'class' in site_dict[item]['link'].keys():
-               link_element = obj.find(site_dict[item]['link']['tag'],
+               link_element = objects[i].find(site_dict[item]['link']['tag'],
                                        site_dict[item]['link']['class'])
             else:
-               link_element = obj.find(site_dict[item]['link']['tag'])
+               link_element = objects[i].find(site_dict[item]['link']['tag'])
 
             # if the link entity is None, the current list object itself will be used, assuming it has the 'href' attribute
             if link_element == None:
-               snippet = obj['href']
+               snippet = objects[i]['href']
             # if everything is fine, the href data will be extracted from one of the elements of the list object
             else:
                snippet = link_element['href']
@@ -299,9 +299,9 @@ class DataFetcher(Bs, SeqManager):
          if 'images' in site_dict[item]['obj_components']:
             # here we find all the images inlined in the list object
             if 'class' in site_dict[item]['image']:
-               images_house = obj.find_all(site_dict[item]['image']['tag'], site_dict[item]['image']['class'])
+               images_house = objects[i].find_all(site_dict[item]['image']['tag'], site_dict[item]['image']['class'])
             else:
-               images_house = obj.find_all(site_dict[item]['image']['tag'])
+               images_house = objects[i].find_all(site_dict[item]['image']['tag'])
 
             # create a collection of images referred to the object
             img_collection = []
@@ -340,7 +340,7 @@ class DataFetcher(Bs, SeqManager):
          # check if anything about vendors is required
          if 'vendor_titles' in site_dict[item]['obj_components']:
             # find a vendor object
-            vendor = obj.find(site_dict[item]['vendor']['object']['tag'],
+            vendor = objects[i].find(site_dict[item]['vendor']['object']['tag'],
                               site_dict[item]['vendor']['object']['class'])
 
             # extract a name of the vendor from the child of the object
@@ -435,8 +435,6 @@ class DataFetcher(Bs, SeqManager):
       unstructured and site dictionary. It then iterates through the content 
       keys checking api components requirements and returns a structured object.
       """
-      # define a content language
-      cont_language = site_dict['content_language']
       # define an object
       obj = {}
 
@@ -452,15 +450,16 @@ class DataFetcher(Bs, SeqManager):
          if key in site_dict[item]['obj_components']:
             obj_entity = content_dict[key][order_num]
             if key == 'titles':
-               text = DataFetcher.refine_string(item, obj_entity, site_dict, lang=cont_language)
+               text = DataFetcher.refine_string(item, obj_entity, site_dict)
                # if the max point is specified in the json configs, the text will be sliced
                if max_point:
                   if len(text) >= max_point:
                      obj[key[:-1]] = text[:max_point]
                else:
-                  obj[key[:-1]] = max_point
+                  obj[key[:-1]] = text
             if key == 'integers':
                obj[key[:-1]] = DataFetcher.refine_string(item, obj_entity, site_dict, numbers_only=True)
+
             else:
                obj[key[:-1]] = obj_entity
 

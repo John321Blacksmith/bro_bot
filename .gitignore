@@ -4,4 +4,5 @@ test.py
 telebot/__pycache__
 test.py
 *.json
+*.txt
 
