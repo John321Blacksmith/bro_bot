@@ -71,8 +71,8 @@ async def get_news(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
     ## get news of this category
     # unstrucured content
-    news_content = great_parser.fetch_content(news_confs[category]['source'], category, news_confs)
-    news_objs = great_parser.structure_data(category, news_confs, news_content)
+    news_content = great_parser.DataFetcher.fetch_content(news_confs[category]['source'], category, news_confs)
+    news_objs = great_parser.DataFetcher.structure_data(category, news_confs, news_content)
 
     await update.message.reply_text(text=news_objs)
 
