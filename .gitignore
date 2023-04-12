@@ -1,8 +1,7 @@
 t_bot/
 telebot/credentials.py
-test.py
 telebot/__pycache__
-test.py
+test_app.py
 *.json
 *.txt
 

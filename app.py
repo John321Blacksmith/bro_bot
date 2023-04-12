@@ -1,110 +1,153 @@
+"""
+This bot finds all the closest markets based on your
+location where you can buy a priced off product you told the bot.
+"""
 import logging
-import sys
-sys.path.append('C://Users//belok//Desktop//John321Blacksmith//bro_bot')
-from telegram import __version__ as TG_VER
-
-try:
-    from telegram import __version_info__
-except ImportError:
-    __version_info__ = (0, 0, 0, 0, 0)  # type: ignore[assignment]
-
-if __version_info__ < (20, 0, 0, "alpha", 1):
-    raise RuntimeError(
-        f"This example is not compatible with your current PTB version {TG_VER}. To view the "
-        f"{TG_VER} version of this example, "
-        f"visit https://docs.python-telegram-bot.org/en/v{TG_VER}/examples.html"
-    )
-
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup
-from telegram import ForceReply, Update
-from telegram.ext import (Application,
-                          CommandHandler,
-                          ContextTypes,
-                          CallbackQueryHandler,
-                          MessageHandler,
-                          filters)
-from telebot.credentials import API_TOKEN
-from telebot import great_parser
-
-news_confs = great_parser.decode_json_data('telebot//scraping_confs.json')
-
-# Enable logging
-logging.basicConfig(
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
+from warnings import filterwarnings
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.warnings import PTBUserWarning
+from telegram.ext import (
+	filters, 
+	Application,
+	ContextTypes, 
+	CommandHandler,
+	MessageHandler,
+	CallbackQueryHandler,
+	ConversationHandler
 )
+
+from telebot.credentials import (API_TOKEN, BOT_NAME, users)
+
+
+# define a logger
+logging.basicConfig(
+		format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+		level=logging.INFO
+	)
+
 logger = logging.getLogger(__name__)
 
-
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Greet the user."""
-
-    user = update.effective_user
-
-    await update.message.reply_text(
-        f"""Hello, {user.username}, I am your bro bot :-).\nI can show you news, weather and current stock.\nHere are the commands:
-           /news - show news,
-           /weather - show weather,
-           /stock - show stock
-        """
-    )
+filterwarnings(action='ignore', message=r'.*CallbackQueryHandler', category=PTBUserWarning)
 
 
-async def choose_news_cat(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Show news."""
-    news_cats_keyboard = [[InlineKeyboardButton('culture', callback_data='culture')],
-                          [InlineKeyboardButton('sport', callback_data='sport')],
-                          [InlineKeyboardButton('politics', callback_data='politics')],
-                          [InlineKeyboardButton('high-tech', callback_data='high-tech')],
-                          [InlineKeyboardButton('main', callback_data='main')]
-                          ]
-
-    # get a JSON serializable object
-    keyboard_markup = InlineKeyboardMarkup(news_cats_keyboard)
-
-    await update.message.reply_text("Select the category you prefer:", reply_markup=keyboard_markup)
+PRODUCT, VENDOR, LOCATION = range(3)
 
 
-async def get_news(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    query = update.callback_query
-    # define the chosen category as a keyword for the parser
-    category = query.data
+vendors = {
+	'coffee': [
+	[InlineKeyboardButton(text='Nestle', callback_data='Nestle')],
+	[InlineKeyboardButton(text='Jacobs', callback_data='Jacobs')],
+	[InlineKeyboardButton(text='Jardin', callback_data='Jardin')]
+	],
+	'candies': [
+	[InlineKeyboardButton(text='Red October', callback_data='Red October')],
+	[InlineKeyboardButton(text='Little Baby', callback_data='Little Baby')],
+	[InlineKeyboardButton(text='Nesquick', callback_data='Nesquick')]
+	],
+	'fuzzy drinks': [
+	[InlineKeyboardButton(text='CocaCola', callback_data='Coca Cola')],
+	[InlineKeyboardButton(text='Buratino', callback_data='Buratino')],
+	[InlineKeyboardButton(text='Lemonade', callback_data='Lemonade')]
+	]
+}
 
-    ## get news of this category
-    # unstrucured content
-    news_content = great_parser.DataFetcher.fetch_content(news_confs[category]['source'], category, news_confs)
-    news_objs = great_parser.DataFetcher.structure_data(category, news_confs, news_content)
 
-    await update.message.reply_text(text=news_objs)
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+	"""
+	Starting a conversation and asking what the user has to buy.
+	"""
+
+	await update.message.reply_text(
+		'What\'s up, buddy.'
+		'I have heard you were going to buy something\n'
+		'Please, enter a name of the product you want to buy;\n'
+		'I \'ll dy my best to find a better solution.\n'
+		'You can /cancel our talk'
+		)
+
+	return PRODUCT
 
 
-async def reply(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Reply to the user."""
+async def store_product(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+	"""
+	Storing a product and returning a list of all the Vendors produce the product.
+	"""
+	user = update.message.from_user
+	# fetch a previous message about a product
+	product = update.message.text
+	logger.info(f'The \'{user.first_name}\'\'s product: {product}')
 
-    # catch user's input
-    query = update.callback_query
+	keyboard = InlineKeyboardMarkup(vendors[product])
+
+	await update.message.reply_text(
+			f'Ok. You\'ve entered: {product}.\n'
+			'Please, choose a preferred Vendor of this product',
+			reply_markup=keyboard
+		)
+
+	return VENDOR
+
+ 
+async def find_by_vendor(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+	"""
+	Storing a Vendor name and asking the user for his location.
+	"""
+	# fetch a previous message about a vendor
+	query = update.callback_query
+	await query.answer()
+	vendor_name = query.data
+	logger.info(f'The user \'John\'\'s choice: {vendor_name}')
+
+	await query.edit_message_text(
+			f'Well, I always knew you liked \'{vendor_name}\')).\n'
+			'Now, share me your location, and I\'ll try to find the closest markets'
+		)
+
+	return LOCATION
 
 
-def main() -> None:
-    """Launch the bot."""
+async def find_markets(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+	"""
+	Storing a user's location and finding a closest market to buy the product in.
+	"""
+	user = update.message.from_user
+	# fetch a previous message about a location
+	user_location = update.message.location
+	logger.info(f'The \'{user.first_name}\'\'s location:\nlatitude:{user_location} \nlongitute:{user_location}')
 
-    # create the application and pass an api key
-    application = Application.builder().token(API_TOKEN).build()
+	await update.message.reply_text(
+			f'Here are the nearest markets\n'
+			f'based on the location {user_location.latitude}/{user_location.longitude}'
+		)
 
-    # handle different commands
-    application.add_handler(CommandHandler('start', start))
-    # show news
-    application.add_handler(CommandHandler('news', choose_news_cat))
+	return ConversationHandler.END
 
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, reply))
 
-    application.add_handler(CallbackQueryHandler(get_news))
+async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
+	"""
+	Cancel the trial.
+	"""
+	return ConversationHandler.END
 
-    # # non-commands
-    # application.add_handler()
 
-    # run the bot
-    application.run_polling()
+def main():
+	application = Application.builder().token(API_TOKEN).build()
+
+	conv_handler = ConversationHandler(
+			entry_points=[CommandHandler('start', start)],
+			states={
+				PRODUCT: [MessageHandler(filters.TEXT & ~filters.COMMAND, store_product)],
+				VENDOR: [CallbackQueryHandler(find_by_vendor)],
+				LOCATION: [MessageHandler(filters.LOCATION, find_markets)]
+			},
+			fallbacks=[CommandHandler('cancel', cancel)]
+
+		)
+
+	application.add_handler(conv_handler)
+
+	application.run_polling()
 
 
 if __name__ == '__main__':
-    main()
+	main()	
